@@ -13,6 +13,11 @@ export interface prefixBasedSearch {
     value: string;
 }
 
+export interface suffixBasedSearch {
+    suffix?: string;
+    parameter: string;
+}
+
 // Convert from FHIR standard search prefixes to ES Operators
 function formatPrefix(prefix: string): string {
     if (prefix === PREFIXES.GREATER_OR_EQUAL) {
@@ -31,6 +36,22 @@ function formatPrefix(prefix: string): string {
         return ES_OPERATORS.LESSER_OR_EQUAL; // need to implement approximation
     }
     return prefix;
+}
+
+function formatSuffix(suffix: string): string {
+    // if(ALLOWED_SUFFIXES.includes(suffix))
+    // }
+    return suffix;
+}
+
+function splitSuffixAndParameter(parameter: string): suffixBasedSearch {
+    if (parameter.includes(':')) {
+        const suffixSplitArray = parameter.split(':', 2);
+        if (suffixSplitArray[0] !== '') {
+            return { suffix: formatSuffix(suffixSplitArray[1]), parameter: suffixSplitArray[0] };
+        }
+    }
+    return { suffix: undefined, parameter };
 }
 
 // This function is written only for date fields.Function need to be modifed if used for any other parameter searches
@@ -92,20 +113,52 @@ function dateBasedSearch(searchParameter: string, searchvalue: string): any {
     return { typeOfQuery: TYPE_OF_QUERY.FILTER, query };
 }
 
-// Split the query based on search field data types
-function splitQuery(field: string, searchParameter: string, value: string) {
-    if (DATE_FIELDS.includes(searchParameter)) return dateBasedSearch(searchParameter, value);
-    //  Use for all other search parameters.
-    // TODO: Need to refine this search parameter
-    const query = {
+function stringBasedSearch(searchParameter: string, value: string): any {
+    const search = splitSuffixAndParameter(searchParameter);
+    const field = getDocumentField(search.parameter);
+    let query = {};
+    // No Suffixes means string has to start with value
+    if (search.suffix === 'contains') {
+        query = {
+            query_string: {
+                fields: [field],
+                query: `*${value}*`,
+                default_operator: 'AND',
+                lenient: true,
+            },
+        };
+        return { typeOfQuery: TYPE_OF_QUERY.MUST, query };
+    }
+    if (search.suffix === 'exact') {
+        query = {
+            query_string: {
+                fields: [field],
+                query: value,
+                default_operator: 'AND',
+                lenient: true,
+            },
+        };
+        return { typeOfQuery: TYPE_OF_QUERY.MUST, query };
+    }
+    // No search parameter is passed. It will search based on starts with data.
+    // TODO : This will be default behaviour for non string fields as well.
+    query = {
         query_string: {
             fields: [field],
-            query: value,
+            query: `${value}*`,
             default_operator: 'AND',
             lenient: true,
         },
     };
     return { typeOfQuery: TYPE_OF_QUERY.MUST, query };
+}
+
+// Split the query based on search field data types
+function splitQuery(searchParameter: string, value: string) {
+    if (DATE_FIELDS.includes(searchParameter)) return dateBasedSearch(searchParameter, value);
+    //  Use for all other search parameters.
+    // TODO: Need to refine this search parameter
+    return stringBasedSearch(searchParameter, value);
 }
 
 /**
@@ -123,8 +176,7 @@ export function buildQuery(queryParams: any): any {
         if (NON_SEARCHABLE_PARAMETERS.includes(searchParameter)) {
             return;
         }
-        const field = getDocumentField(searchParameter);
-        const { typeOfQuery, query } = splitQuery(field, searchParameter, value as string);
+        const { typeOfQuery, query } = splitQuery(searchParameter, value as string);
         if (typeOfQuery === TYPE_OF_QUERY.FILTER) {
             filter.push(query);
         } else if (typeOfQuery === TYPE_OF_QUERY.MUST_NOT) {

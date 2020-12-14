@@ -74,7 +74,7 @@ export class ElasticSearchService implements Search {
                 size,
                 body,
             };
-
+            console.log(JSON.stringify(params));
             const { total, hits } = await this.executeQuery(params);
             const result: SearchResult = {
                 numberOfResults: total,

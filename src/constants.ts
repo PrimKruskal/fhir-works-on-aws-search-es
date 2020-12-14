@@ -37,6 +37,8 @@ export const NON_SEARCHABLE_PARAMETERS = [
 
 export const ALLOWED_PREFIXES = ['eq', 'ne', 'gt', 'lt', 'ge', 'le', 'sa', 'eb', 'ap'];
 
+export const ALLOWED_SUFFIXES = ['contains', 'exact', 'below', 'above', 'text', 'not', 'in', 'not-in', 'of-type'];
+
 export const enum PREFIXES {
     EQUAL = 'eq',
     NOT_EQUAL = 'ne',
